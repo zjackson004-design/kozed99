@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z99 - My History</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+        body { background-color: #121212; color: #e5e7eb; font-family: 'Segoe UI', sans-serif; }
+        .ticket-card { background: #1e1e1e; border: 1px solid #333; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+        .ticket-header { background: #252525; padding: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; cursor: pointer; }
+        .ticket-body { padding: 10px; background: #1a1a1a; display: none; }
+        .ticket-body.open { display: block; }
+        .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+        .status-Pending { background: #f59e0b; color: black; }
+        .status-Won { background: #10b981; color: black; }
+        .status-Lost { background: #ef4444; color: white; }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <header class="bg-[#064e3b] text-white shadow-lg sticky top-0 z-50">
+        <div class="px-4 py-3 flex items-center gap-4">
+            <a href="home.html"><i class="fas fa-arrow-left text-xl"></i></a>
+            <h1 class="font-bold text-lg tracking-wide">Bet History</h1>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4" id="history-container">
+        <div class="text-center mt-10 text-gray-500">Loading...</div>
+    </main>
+
+    <script>
+        // ✅ UNIVERSAL CONNECTION (Local မှာရော Server မှာပါ အလိုအလျောက် အလုပ်လုပ်မယ်)
+// ✅ UNIVERSAL CONNECTION
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.')
+    ? 'http://' + window.location.host  // Local မှာ run ရင် Local link သုံးမယ်
+    : '';                               // Server ပေါ်ရောက်ရင် Empty string (Relative Path) သုံးမယ်
+     window.location.origin;
+        const currentUser = JSON.parse(localStorage.getItem('z99_user'));
+        if (!currentUser) window.location.href = 'login.html';
+
+        async function loadHistory() {
+            try {
+                const res = await fetch(`${API_BASE}/user/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentUser.username })
+                });
+                const data = await res.json();
+                const list = document.getElementById('history-container');
+                
+                if (!data.history || data.history.length === 0) {
+                    list.innerHTML = `<div class="text-center mt-10 text-gray-500 opacity-50"><i class="fas fa-file-invoice text-4xl mb-2"></i><br>No bets found</div>`;
+                    return;
+                }
+
+                let html = '';
+                data.history.forEach((t, index) => {
+                    // Match Details HTML
+                    let matchesHtml = '';
+                    if (t.matches && Array.isArray(t.matches)) {
+                        t.matches.forEach(m => {
+                            matchesHtml += `
+                            <div class="flex justify-between text-xs border-b border-gray-700 py-2 last:border-0">
+                                <div class="text-gray-400">${m.title}<br><span class="text-blue-400 font-bold">${m.selection}</span></div>
+                                <div class="text-yellow-500 font-bold">@${m.odds}</div>
+                            </div>`;
+                        });
+                    }
+
+                    html += `
+                    <div class="ticket-card">
+                        <div class="ticket-header" onclick="toggleTicket(${index})">
+                            <div>
+                                <div class="text-xs text-gray-400 mb-1">${t.date}</div>
+                                <div class="font-bold text-white text-sm">${t.id}</div>
+                            </div>
+                            <div class="text-right">
+                                <span class="status-badge status-${t.status}">${t.status}</span>
+                                <div class="text-[10px] text-gray-500 mt-1"><i class="fas fa-chevron-down"></i> Details</div>
+                            </div>
+                        </div>
+                        <div class="ticket-body" id="ticket-${index}">
+                            ${matchesHtml}
+                            <div class="mt-3 pt-2 border-t border-gray-600 flex justify-between text-sm">
+                                <span class="text-gray-400">Stake:</span> <span class="text-white font-bold">${parseInt(t.stake).toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between text-sm mt-1">
+                                <span class="text-gray-400">Return:</span> <span class="text-green-400 font-bold">${t.win}</span>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                list.innerHTML = html;
+
+            } catch (err) { console.error(err); }
+        }
+
+        function toggleTicket(id) {
+            const el = document.getElementById(`ticket-${id}`);
+            el.classList.toggle('open');
+        }
+
+        loadHistory();
+    </script>
+</body>
+</html>

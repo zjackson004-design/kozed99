@@ -1,0 +1,19 @@
+{
+  "name": "z99-betting",
+  "version": "1.0.0",
+  "description": "Z99 Sports Betting App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "express": "^4.22.1",
+    "mongoose": "^8.20.2"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}

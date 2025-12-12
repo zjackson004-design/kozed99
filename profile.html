@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z99 - Profile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>body { background-color: #121212; color: #e5e7eb; font-family: 'Segoe UI', sans-serif; }</style>
+    <link rel="manifest" href="manifest.json">
+    <script>
+        const currentUser = JSON.parse(localStorage.getItem('z99_user'));
+        if (!currentUser) window.location.href = 'login.html';
+        // ✅ UNIVERSAL CONNECTION (Local မှာရော Server မှာပါ အလိုအလျောက် အလုပ်လုပ်မယ်)
+// ✅ UNIVERSAL CONNECTION
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.')
+    ? 'http://' + window.location.host  // Local မှာ run ရင် Local link သုံးမယ်
+    : '';                               // Server ပေါ်ရောက်ရင် Empty string (Relative Path) သုံးမယ် window.location.origin;
+    </script>
+</head>
+<body class="flex flex-col h-screen">
+
+    <header class="bg-[#064e3b] text-white shadow-lg sticky top-0 z-50">
+        <div class="px-4 py-3 flex items-center gap-4">
+            <a href="home.html"><i class="fas fa-arrow-left text-xl"></i></a>
+            <h1 class="font-bold text-lg tracking-wide">My Profile</h1>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 space-y-4">
+
+        <div class="bg-[#1e1e1e] border border-gray-700 rounded-xl p-6 text-center">
+            <div class="w-20 h-20 bg-gray-800 rounded-full mx-auto flex items-center justify-center text-4xl text-gray-500 mb-3 border-2 border-gray-600">
+                <i class="fas fa-user"></i>
+            </div>
+            <h2 class="text-xl font-black text-white" id="profile-user">...</h2>
+            <p class="text-xs text-green-400 font-bold bg-green-900/30 inline-block px-3 py-1 rounded-full mt-1">Active Member</p>
+        </div>
+
+        <div class="bg-[#1e1e1e] border border-gray-700 rounded-xl p-4">
+            <h3 class="font-bold text-gray-500 text-xs uppercase mb-3"><i class="fas fa-headset"></i> Contact Support</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <a href="#" class="bg-purple-700 text-white py-3 rounded-lg flex flex-col items-center justify-center hover:bg-purple-600 transition">
+                    <i class="fab fa-viber text-2xl mb-1"></i> <span class="text-xs font-bold">Viber</span>
+                </a>
+                <a href="#" class="bg-blue-600 text-white py-3 rounded-lg flex flex-col items-center justify-center hover:bg-blue-500 transition">
+                    <i class="fab fa-telegram-plane text-2xl mb-1"></i> <span class="text-xs font-bold">Telegram</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="bg-[#1e1e1e] border border-gray-700 rounded-xl p-4">
+            <h3 class="font-bold text-gray-500 text-xs uppercase mb-3"><i class="fas fa-key"></i> Security</h3>
+            <div class="space-y-3">
+                <input type="password" id="old-pass" placeholder="Current Password" class="w-full bg-[#333] border border-gray-600 rounded p-2 text-sm text-white outline-none focus:border-green-500">
+                <input type="password" id="new-pass" placeholder="New Password" class="w-full bg-[#333] border border-gray-600 rounded p-2 text-sm text-white outline-none focus:border-green-500">
+                <button onclick="changePassword()" class="w-full bg-gray-700 text-white font-bold py-2 rounded hover:bg-gray-600 transition">Update Password</button>
+            </div>
+        </div>
+
+        <button onclick="logout()" class="w-full bg-red-900/30 text-red-500 border border-red-900 font-bold py-3 rounded-xl hover:bg-red-900/50 transition">Log Out</button>
+
+    </main>
+
+    <script>
+        document.getElementById('profile-user').innerText = currentUser.username;
+
+        async function changePassword() {
+            const oldP = document.getElementById('old-pass').value;
+            const newP = document.getElementById('new-pass').value;
+            if(!oldP || !newP) return alert("Fill fields");
+            try {
+                const res = await fetch(`${API_BASE}/user/change-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentUser.username, oldPassword: oldP, newPassword: newP })
+                });
+                const data = await res.json();
+                if(data.success) { alert("Done! Login again."); logout(); } else alert(data.error);
+            } catch(e) { alert("Error"); }
+        }
+
+        function logout() { localStorage.removeItem('z99_user'); window.location.href = 'login.html'; }
+    </script>
+</body>
+</html>

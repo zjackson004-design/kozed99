@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z99 - Pro Betting</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body { background-color: #121212; color: #e5e7eb; font-family: 'Segoe UI', sans-serif; font-size: 12px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* Table Layouts */
+        .odds-table-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 4px; padding: 6px 10px; background: #1f2937; color: #fbbf24; font-weight: bold; font-size: 10px; text-align: center; }
+        .odds-table-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 4px; padding: 10px; background: #1c1c1c; border-bottom: 1px solid #333; align-items: center; }
+        .teams-col { display: flex; flex-direction: column; gap: 4px; }
+        .team-name { font-weight: bold; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+        .time-info { font-size: 10px; color: #9ca3af; margin-bottom: 2px; }
+        .odd-cell { background: #2d2d2d; padding: 6px 4px; text-align: center; border-radius: 4px; cursor: pointer; border: 1px solid #333; display: flex; flex-direction: column; justify-content: center; height: 100%; transition: 0.2s; }
+        .odd-cell:hover { background: #333; border-color: #555; }
+        .odd-cell.selected { background: #fbbf24; color: black; border-color: #fbbf24; }
+        .odd-line { font-size: 9px; color: #9ca3af; margin-bottom: 2px; }
+        .odd-val { font-size: 13px; font-weight: bold; color: #4ade80; }
+        .odd-cell.selected .odd-val { color: black; }
+        .odd-cell.selected .odd-line { color: #333; }
+        /* UI Elements */
+        .date-btn { padding: 8px 12px; background: #2d2d2d; border-radius: 4px; cursor: pointer; text-align: center; min-width: 60px; }
+        .date-btn.active { background: #064e3b; color: white; border: 1px solid #fbbf24; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100; justify-content: center; align-items: center; }
+        #bet-slip-panel { transition: transform 0.3s; background: #222; border-top: 4px solid #fbbf24; }
+        .slip-minimized { transform: translateY(calc(100% - 48px)); }
+        #ticket-capture { background: white; color: black; padding: 20px; border-top: 10px solid #064e3b; position: absolute; left: -9999px; width: 400px; }
+        .team-logo { width: 18px; height: 18px; object-fit: contain; }
+        .league-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #333; }
+        .league-item:hover, .league-item.active { background: #1f2937; color: #fbbf24; border-left: 3px solid #fbbf24; }
+        /* Toast Animation */
+        #toast { transition: all 0.3s ease-in-out; }
+    </style>
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.') ? 'http://' + window.location.host : '';
+        const currentUser = JSON.parse(localStorage.getItem('z99_user'));
+        if (!currentUser) window.location.href = 'login.html';
+    </script>
+</head>
+<body class="flex flex-col h-screen">
+
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 opacity-0 translate-y-[-20px] pointer-events-none z-[200] border border-gray-600">
+        <i id="toast-icon" class="fas fa-check-circle text-green-400 text-xl"></i>
+        <span id="toast-msg" class="font-bold text-sm">Success</span>
+    </div>
+
+    <header class="bg-[#064e3b] shadow-lg flex-none z-50">
+        <div class="px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <a href="home.html"><i class="fas fa-arrow-left text-white text-xl"></i></a>
+                <img src="logo.png" class="h-10">
+                <div class="text-[10px] text-green-200 font-mono hidden md:block" id="user-clock">--:--:--</div>
+            </div>
+            <div class="text-right">
+                <div class="text-[9px] text-green-200">BALANCE</div>
+                <div class="font-bold text-yellow-400 text-sm" id="user-balance">...</div>
+            </div>
+        </div>
+        <div class="bg-[#1a1a1a] p-2 flex gap-2 overflow-x-auto no-scrollbar border-b border-gray-700" id="date-scroll"></div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="hidden md:block w-64 bg-[#151515] border-r border-gray-800 overflow-y-auto">
+            <div class="p-3 font-bold text-white bg-[#1f2937] sticky top-0"><i class="fas fa-trophy text-yellow-500 mr-2"></i> LEAGUES</div>
+            <div id="league-list"></div>
+        </aside>
+        <main class="flex-1 overflow-y-auto bg-[#121212] relative" id="match-container">
+            <div class="text-center p-10 text-gray-500"><i class="fas fa-circle-notch fa-spin text-2xl text-yellow-500"></i> Loading...</div>
+        </main>
+    </div>
+
+    <div id="ticket-capture"></div>
+
+    <div id="bet-slip-panel" class="fixed bottom-0 right-0 w-full md:w-96 shadow-2xl z-50 slip-minimized flex flex-col max-h-[80vh]">
+        <div class="bg-[#064e3b] p-3 flex justify-between items-center cursor-pointer h-12" onclick="toggleSlip()">
+            <div class="flex items-center gap-2"><span class="bg-yellow-500 text-black w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs" id="slip-badge">0</span><span class="font-bold">BET SLIP</span></div>
+            <div class="flex items-center gap-3">
+                <span class="text-yellow-400 font-bold text-xs" id="mini-win"></span>
+                <i class="fas fa-chevron-up transition-transform" id="slip-icon"></i>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2 bg-[#1a1a1a] space-y-2 border-b border-gray-700" id="slip-items"></div>
+        <div class="p-4 bg-[#222]">
+            <div class="flex justify-between text-xs mb-2 text-gray-400"><span>Total Odds: <span class="text-yellow-400 text-lg" id="total-odds">1.00</span></span></div>
+            <input type="number" id="stake-input" class="w-full bg-[#333] border border-gray-600 rounded p-3 text-right font-bold text-white outline-none focus:border-yellow-500" placeholder="Stake" oninput="calcWin()">
+            <div class="flex justify-between items-center bg-[#333] p-3 rounded mt-2 border border-gray-600"><span class="text-xs text-gray-400">WIN:</span> <span class="font-black text-green-400 text-xl" id="potential-win">0</span></div>
+            <button id="place-bet-btn" onclick="openConfirmModal()" class="w-full bg-[#064e3b] text-white font-bold py-3 rounded mt-3 transition hover:bg-green-700">PLACE BET</button>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal"><div class="modal-content bg-[#222] text-center p-4 border border-gray-600 rounded-lg w-80"><div class="bg-[#064e3b] p-2 font-bold mb-4 rounded text-white">CONFIRM BET</div><div id="confirm-list" class="text-left text-xs space-y-2 mb-4 text-gray-300"></div><div class="flex justify-between border-t border-gray-600 pt-2 text-sm"><span class="text-gray-400">Stake:</span> <span id="conf-stake" class="text-white font-bold"></span></div><div class="flex justify-between text-sm"><span class="text-gray-400">Win:</span> <span id="conf-win" class="text-green-400 font-bold"></span></div><div class="grid grid-cols-2 gap-3 mt-4"><button onclick="closeModal('confirm-modal')" class="bg-gray-700 text-white py-2 rounded">Cancel</button><button id="final-submit-btn" onclick="submitBet()" class="bg-[#064e3b] text-white font-bold py-2 rounded hover:bg-green-600">CONFIRM</button></div></div></div>
+    
+    <div id="success-modal" class="modal"><div class="modal-content bg-[#222] text-center p-6 border border-green-600 rounded-lg"><i class="fas fa-check-circle text-green-500 text-4xl mb-2"></i><h2 class="text-xl font-bold text-white">Success!</h2><p class="text-gray-400 text-xs mb-4">Ticket: <span id="ticket-id" class="text-yellow-400"></span></p><div class="grid grid-cols-2 gap-3"><button onclick="closeModal('success-modal')" class="bg-gray-700 text-white py-2 rounded">Close</button><button onclick="downloadTicket()" class="bg-[#064e3b] text-white py-2 rounded">Save Ticket</button></div></div></div>
+
+    <script>
+        let allMatches = [], betSlip = [], selectedLeague = "ALL", currentDate = new Date();
+        let userBalance = 0, lastPlacedTicket = null, MAX_STAKE = 100000, MAX_WIN = 5000000;
+
+        // Clock
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('user-clock').innerText = now.toLocaleTimeString('en-US', {hour12: false});
+        }, 1000);
+
+        async function init() {
+            await syncWallet(); await fetchAllData(); renderCalendar();
+            fetch(`${API_BASE}/api/config`).then(r=>r.json()).then(d=>{ if(d.maxStake) MAX_STAKE = d.maxStake; if(d.maxWin) MAX_WIN = d.maxWin; });
+        }
+
+        // ✅ TOAST FUNCTION
+        function showToast(msg, type='success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const text = document.getElementById('toast-msg');
+            
+            text.innerText = msg;
+            icon.className = type === 'error' ? "fas fa-times-circle text-red-500 text-xl" : "fas fa-check-circle text-green-400 text-xl";
+            
+            toast.classList.remove('opacity-0', 'translate-y-[-20px]');
+            setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-[-20px]'); }, 3000);
+        }
+
+        async function fetchAllData() {
+            try {
+                const res = await fetch(`${API_BASE}/odds`);
+                allMatches = await res.json();
+                renderLeagues(); renderMatches();
+            } catch(e) { console.error(e); }
+        }
+
+        function renderCalendar() {
+            const container = document.getElementById('date-scroll');
+            let html = '';
+            for(let i=-2; i<=4; i++) {
+                const d = new Date(); d.setDate(d.getDate() + i);
+                const isToday = i === 0;
+                const active = d.toDateString() === currentDate.toDateString() ? 'bg-[#064e3b] border-[#fbbf24] text-white' : 'bg-[#2d2d2d] text-gray-400';
+                const display = isToday ? 'Today' : d.getDate() + '/' + (d.getMonth()+1);
+                html += `<div class="${active} px-3 py-2 rounded cursor-pointer border border-transparent text-xs font-bold min-w-[60px] text-center" onclick="changeDate('${d.toISOString()}')">${display}</div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function changeDate(dStr) { currentDate = new Date(dStr); renderCalendar(); renderMatches(); }
+
+        function renderLeagues() {
+            const list = document.getElementById('league-list');
+            const leagues = [...new Set(allMatches.map(m => m.league.name))].sort();
+            let html = `<div class="league-item active" onclick="filterLeague('ALL', this)"><i class="fas fa-globe"></i> All Leagues</div>`;
+            leagues.forEach(l => { html += `<div class="league-item" onclick="filterLeague('${l}', this)"><i class="fas fa-futbol text-gray-500"></i> ${l}</div>`; });
+            list.innerHTML = html;
+        }
+
+        function filterLeague(l, el) { selectedLeague = l; document.querySelectorAll('.league-item').forEach(i=>i.classList.remove('active')); el.classList.add('active'); renderMatches(); }
+
+        function renderMatches() {
+            const container = document.getElementById('match-container');
+            container.innerHTML = '';
+            const targetDate = currentDate.toISOString().split('T')[0];
+            const filtered = allMatches.filter(m => m.fixture.date.startsWith(targetDate) && (selectedLeague === "ALL" || m.league.name === selectedLeague));
+
+            if(filtered.length === 0) { container.innerHTML = `<div class="text-center p-10 text-gray-500">No matches for ${targetDate}</div>`; return; }
+
+            const grouped = {};
+            filtered.forEach(m => { if(!grouped[m.league.name]) grouped[m.league.name] = []; grouped[m.league.name].push(m); });
+
+            for (const [leagueName, matches] of Object.entries(grouped)) {
+                let matchesHtml = `<div class="odds-table-header"><div class="text-left">Match</div><div>HDP</div><div>O/U</div><div>1X2</div></div>`;
+                matches.forEach(m => {
+                    const d = new Date(m.fixture.date);
+                    const time = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    const isSel = (sel) => betSlip.some(b => b.id === m.id && b.selection === sel) ? 'selected' : '';
+                    matchesHtml += `
+                    <div class="odds-table-row">
+                        <div class="teams-col">
+                            <div class="time-info"><span class="text-yellow-500 font-bold">${time}</span></div>
+                            <div class="team-name"><img src="${getLogo(m.home)}" class="team-logo"> ${m.home}</div>
+                            <div class="team-name"><img src="${getLogo(m.away)}" class="team-logo"> ${m.away}</div>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <div class="odd-cell ${isSel(m.home + ' (HDP)')}" onclick="toggleSelection('${m.id}', '${m.home} (HDP)', '${m.ft.hdp_h}', '${m.home} vs ${m.away}')"><span class="odd-line">${m.ft.line_h}</span><span class="odd-val">${m.ft.hdp_h}</span></div>
+                            <div class="odd-cell ${isSel(m.away + ' (HDP)')}" onclick="toggleSelection('${m.id}', '${m.away} (HDP)', '${m.ft.hdp_a}', '${m.home} vs ${m.away}')"><span class="odd-val">${m.ft.hdp_a}</span></div>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <div class="odd-cell ${isSel('Over')}" onclick="toggleSelection('${m.id}', 'Over', '${m.ft.o}', '${m.home} vs ${m.away}')"><span class="odd-line">O ${m.ft.line_o}</span><span class="odd-val">${m.ft.o}</span></div>
+                            <div class="odd-cell ${isSel('Under')}" onclick="toggleSelection('${m.id}', 'Under', '${m.ft.u}', '${m.home} vs ${m.away}')"><span class="odd-line">U ${m.ft.line_o}</span><span class="odd-val">${m.ft.u}</span></div>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <div class="odd-cell ${isSel(m.home)}" onclick="toggleSelection('${m.id}', '${m.home}', '${m.ft.h}', '${m.home} vs ${m.away}')"><span class="odd-line">1</span><span class="odd-val">${m.ft.h}</span></div>
+                            <div class="odd-cell ${isSel(m.away)}" onclick="toggleSelection('${m.id}', '${m.away}', '${m.ft.a}', '${m.home} vs ${m.away}')"><span class="odd-line">2</span><span class="odd-val">${m.ft.a}</span></div>
+                        </div>
+                    </div>`;
+                });
+                container.innerHTML += `<div class="mb-4 bg-[#151515] rounded overflow-hidden"><div class="p-2 text-xs font-bold text-white bg-[#252525] border-l-4 border-yellow-500">${leagueName}</div>${matchesHtml}</div>`;
+            }
+        }
+
+        async function syncWallet() { try { const res = await fetch(`${API_BASE}/user/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: currentUser.username }) }); if (res.status === 404) { localStorage.removeItem('z99_user'); window.location.href = 'login.html'; return; } const data = await res.json(); userBalance = data.balance; document.getElementById('user-balance').innerText = data.balance.toLocaleString() + " MMK"; } catch (err) {} }
+        function toggleSelection(id, sel, odd, title) { const oddVal = parseFloat(odd); if(isNaN(oddVal)) return; const existingIdx = betSlip.findIndex(b => b.id === id); if(existingIdx > -1) { if(betSlip[existingIdx].selection === sel) betSlip.splice(existingIdx, 1); else betSlip[existingIdx] = { id, title, selection: sel, odds: oddVal }; } else { betSlip.push({ id, title, selection: sel, odds: oddVal }); } updateSlipUI(); renderMatches(); if(betSlip.length > 0 && document.getElementById('bet-slip-panel').classList.contains('slip-minimized')) toggleSlip(); }
+        function updateSlipUI() { const list = document.getElementById('slip-items'); document.getElementById('slip-badge').innerText = betSlip.length; let total = 1; let html = ''; betSlip.forEach((b, i) => { total *= b.odds; html += `<div class="bg-[#333] p-2 rounded border border-gray-600 relative text-xs"><div class="font-bold truncate pr-4 text-gray-300">${b.title}</div><div class="flex justify-between mt-1"><span class="text-blue-400 font-bold">${b.selection}</span><span class="bg-[#222] px-2 border border-gray-500 rounded font-bold text-yellow-400">${b.odds}</span></div><button onclick="removeBet(${i})" class="absolute top-1 right-1 text-gray-500 hover:text-red-500">×</button></div>`; }); list.innerHTML = html || '<div class="text-center text-gray-500 py-4 italic text-xs">Slip is empty</div>'; document.getElementById('total-odds').innerText = betSlip.length ? total.toFixed(2) : "1.00"; calcWin(); }
+        function removeBet(i) { betSlip.splice(i, 1); updateSlipUI(); renderMatches(); }
+        function clearSlip() { betSlip = []; updateSlipUI(); renderMatches(); toggleSlip(); }
+        
+        function toggleSlip() { 
+            const panel = document.getElementById('bet-slip-panel'); 
+            const icon = document.getElementById('slip-icon'); 
+            if(panel.classList.contains('slip-minimized')) { 
+                panel.classList.remove('slip-minimized'); 
+                if(icon) icon.style.transform = "rotate(180deg)"; 
+            } else { 
+                panel.classList.add('slip-minimized'); 
+                if(icon) icon.style.transform = "rotate(0deg)"; 
+            } 
+        }
+        
+        function calcWin() { 
+            const s = parseInt(document.getElementById('stake-input').value) || 0; 
+            const o = parseFloat(document.getElementById('total-odds').innerText); 
+            const win = Math.floor(s * o); 
+            document.getElementById('potential-win').innerText = win.toLocaleString(); 
+            const btn = document.getElementById('place-bet-btn'); 
+            if(s > MAX_STAKE) { btn.disabled = true; btn.innerText = "OVER LIMIT"; btn.classList.add('opacity-50'); } 
+            else if(win > MAX_WIN) { btn.disabled = true; btn.innerText = "MAX PAYOUT"; btn.classList.add('opacity-50'); } 
+            else { btn.disabled = false; btn.innerText = "PLACE BET"; btn.classList.remove('opacity-50'); } 
+        }
+        
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        
+        // ✅ SAFETY SUBMIT (Prevent Double Click)
+        async function submitBet() { 
+            const btn = document.getElementById('final-submit-btn');
+            const s = parseInt(document.getElementById('stake-input').value); 
+            
+            // LOCK BUTTON
+            btn.disabled = true;
+            btn.innerText = "Processing...";
+            
+            const ticket = { id: "Z99-" + Math.floor(Math.random()*10000000), date: new Date().toLocaleString(), matches: betSlip, stake: s, win: document.getElementById('potential-win').innerText + " MMK", status: 'Pending' }; 
+            
+            try { 
+                const res = await fetch(`${API_BASE}/user/bet`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ username: currentUser.username, stake: s, ticket }) }); 
+                if(!res.ok) { const e = await res.json(); throw new Error(e.error || "Failed"); } 
+                
+                const d = await res.json(); userBalance = d.newBalance; document.getElementById('user-balance').innerText = d.newBalance.toLocaleString() + " MMK"; lastPlacedTicket = ticket; 
+                
+                closeModal('confirm-modal'); 
+                document.getElementById('ticket-id').innerText = ticket.id; 
+                document.getElementById('success-modal').style.display = 'flex'; 
+                showToast("Bet Placed Successfully!"); // ✅ SHOW TOAST
+                clearSlip(); 
+            } catch(e) { 
+                closeModal('confirm-modal'); 
+                showToast(e.message, 'error'); // ✅ SHOW ERROR TOAST
+            } finally {
+                // UNLOCK BUTTON
+                btn.disabled = false;
+                btn.innerText = "CONFIRM";
+            }
+        }
+        
+        function openConfirmModal() { 
+            if(betSlip.length===0) return; 
+            const s=document.getElementById('stake-input').value; 
+            if(s<1000){showToast("Min Stake: 1000", 'error'); return;} 
+            if(s>userBalance){showToast("Insufficient Balance", 'error'); return;} 
+            
+            let h=''; betSlip.forEach(b=>{h+=`<div class="flex justify-between border-b border-gray-600 pb-1 text-xs"><span>${b.title}</span><span class="text-blue-400">${b.selection} @ ${b.odds}</span></div>`;}); 
+            document.getElementById('confirm-list').innerHTML=h; document.getElementById('conf-stake').innerText=parseInt(s).toLocaleString(); document.getElementById('conf-win').innerText=document.getElementById('potential-win').innerText; document.getElementById('confirm-modal').style.display='flex'; 
+        }
+        
+        function getLogo(name) { return `https://ui-avatars.com/api/?name=${name}&background=333&color=fff&rounded=true&font-size=0.3`; }
+        function downloadTicket() { 
+            if(!lastPlacedTicket) return; 
+            const captureDiv = document.getElementById('ticket-capture'); 
+            let itemsHtml = ''; 
+            lastPlacedTicket.matches.forEach(m => { itemsHtml += `<div style="margin-bottom:10px; border-bottom:1px dashed #eee; padding-bottom:5px;"><div style="font-size:12px; color:#555;">${m.title}</div><div style="display:flex; justify-content:space-between; font-weight:bold; color:#000;"><span>${m.selection}</span><span>${m.odds}</span></div></div>`; }); 
+            captureDiv.innerHTML = `<div style="text-align:center; margin-bottom:15px;"><div style="background:#064e3b; color:white; font-weight:bold; font-size:24px; padding:5px; display:inline-block; transform:skew(-10deg);">Z99</div><div style="font-size:10px; color:#888; margin-top:5px;">OFFICIAL BET RECEIPT</div></div><div style="font-family:monospace; font-size:12px; color:#333;"><div><strong>Ticket ID:</strong> ${lastPlacedTicket.id}</div><div><strong>Date:</strong> ${lastPlacedTicket.date}</div><div><strong>User:</strong> ${currentUser.username}</div></div><div class="dashed-line"></div>${itemsHtml}<div class="dashed-line"></div><div style="display:flex; justify-content:space-between; font-weight:bold;"><span>Stake:</span> <span>${lastPlacedTicket.stake.toLocaleString()}</span></div><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; color:#064e3b; margin-top:5px;"><span>Win:</span> <span>${lastPlacedTicket.win}</span></div><div style="text-align:center; font-size:10px; color:#aaa; margin-top:20px;">www.kozed99.onrender.com</div>`; 
+            html2canvas(captureDiv).then(canvas => { const link = document.createElement('a'); link.download = `Z99-${lastPlacedTicket.id}.png`; link.href = canvas.toDataURL(); link.click(); }).catch(err => console.error("Ticket Error:", err)); 
+        }
+
+        init();
+    </script>
+</body>
+</html>

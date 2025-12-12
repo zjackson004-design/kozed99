@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z99 - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body { background-color: #064e3b; background-image: url('https://www.transparenttextures.com/patterns/grass.png'); }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white/95 backdrop-blur rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border-4 border-yellow-400">
+        <div class="bg-green-800 p-6 text-center">
+            <h1 class="text-4xl font-black text-yellow-400 italic transform -skew-x-12">Z99</h1>
+            <p class="text-green-200 text-xs tracking-widest uppercase mt-2">Win Big, Play Smart</p>
+        </div>
+
+        <div class="p-6">
+            <div id="login-form">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 text-center">MEMBER LOGIN</h2>
+                <div class="space-y-4">
+                    <input type="text" id="login-user" placeholder="Username" class="w-full bg-gray-100 border border-gray-300 rounded p-3 focus:border-green-600 outline-none font-bold">
+                    <input type="password" id="login-pass" placeholder="Password" class="w-full bg-gray-100 border border-gray-300 rounded p-3 focus:border-green-600 outline-none font-bold">
+                    <button onclick="doLogin()" class="w-full bg-green-700 text-white font-bold py-3 rounded shadow hover:bg-green-800 transition">LOG IN</button>
+                    <div class="text-center text-xs mt-4 text-gray-500 font-bold">
+                        New Member? <span onclick="toggleForm()" class="text-blue-600 cursor-pointer hover:underline">Create Account</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="register-form" class="hidden">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 text-center">REGISTER</h2>
+                <div class="space-y-4">
+                    <input type="text" id="reg-user" placeholder="New Username" class="w-full bg-gray-100 border border-gray-300 rounded p-3 focus:border-green-600 outline-none font-bold">
+                    <input type="password" id="reg-pass" placeholder="New Password" class="w-full bg-gray-100 border border-gray-300 rounded p-3 focus:border-green-600 outline-none font-bold">
+                    <input type="text" id="reg-code" placeholder="Invite Code" class="w-full bg-yellow-100 border border-yellow-400 rounded p-3 font-bold text-yellow-900">
+                    <button onclick="doRegister()" class="w-full bg-yellow-500 text-black font-bold py-3 rounded shadow hover:bg-yellow-400 transition">REGISTER NOW</button>
+                    <div class="text-center text-xs mt-4 text-gray-500 font-bold">
+                        Have Account? <span onclick="toggleForm()" class="text-blue-600 cursor-pointer hover:underline">Login Here</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ✅ PRODUCTION READY API CONNECTION
+        const API_BASE = window.location.origin; 
+
+        // Redirect if already logged in
+        if (localStorage.getItem('z99_user')) {
+            window.location.href = 'home.html';
+        }
+
+        function toggleForm() {
+            document.getElementById('login-form').classList.toggle('hidden');
+            document.getElementById('register-form').classList.toggle('hidden');
+        }
+
+        async function doRegister() {
+            const user = document.getElementById('reg-user').value;
+            const pass = document.getElementById('reg-pass').value;
+            const code = document.getElementById('reg-code').value;
+
+            if(!user || !pass || !code) return alert("Fill all fields");
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: user, password: pass, inviteCode: code })
+                });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error || "Failed");
+                alert("✅ Success! Please Login.");
+                toggleForm();
+            } catch (err) { alert("❌ " + err.message); }
+        }
+
+        async function doLogin() {
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            if(!user || !pass) return alert("Fill all fields");
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                const data = await res.json();
+                if(data.error) { alert("❌ " + data.error); } 
+                else {
+                    localStorage.setItem('z99_user', JSON.stringify(data.user));
+                    window.location.href = 'home.html'; // ✅ Redirects to Home
+                }
+            } catch (err) { alert("❌ Connection Error"); } 
+        }
+    </script>
+</body>
+</html>

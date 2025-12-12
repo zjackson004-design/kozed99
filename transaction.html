@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z99 - Wallet History</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body { background-color: #121212; color: #e5e7eb; font-family: 'Segoe UI', sans-serif; }
+        .trx-card { background: #1e1e1e; padding: 12px; border-radius: 12px; border: 1px solid #333; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 50; justify-content: center; align-items: center; }
+        .status-Pending { color: #facc15; } .status-Approve { color: #22c55e; } .status-Reject { color: #ef4444; }
+    </style>
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.')
+            ? 'http://' + window.location.host
+            : '';
+        const currentUser = JSON.parse(localStorage.getItem('z99_user'));
+        if (!currentUser) window.location.href = 'login.html';
+    </script>
+</head>
+<body class="flex flex-col h-screen">
+
+    <header class="bg-[#064e3b] text-white shadow-lg sticky top-0 z-50 px-4 py-3 flex items-center gap-4">
+        <a href="home.html"><i class="fas fa-arrow-left text-xl"></i></a>
+        <h1 class="font-bold text-lg tracking-wide">Wallet History</h1>
+    </header>
+
+    <div class="bg-[#1f2937] p-6 text-center border-b border-gray-700">
+        <p class="text-gray-400 text-xs uppercase tracking-widest mb-1">Current Balance</p>
+        <h2 class="text-3xl font-black text-yellow-400 tracking-tight" id="display-balance">...</h2>
+        <div class="flex gap-4 mt-6 justify-center">
+            <button onclick="openModal('Deposit')" class="flex-1 bg-green-700 text-white py-2 rounded-lg font-bold shadow flex items-center justify-center gap-2"><i class="fas fa-plus-circle"></i> Deposit</button>
+            <button onclick="openModal('Withdraw')" class="flex-1 bg-red-700 text-white py-2 rounded-lg font-bold shadow flex items-center justify-center gap-2"><i class="fas fa-minus-circle"></i> Withdraw</button>
+        </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4 pb-20">
+        <h3 class="text-gray-500 text-xs font-bold uppercase mb-3 flex justify-between">
+            <span>Recent Requests</span>
+            <span onclick="loadData()" class="cursor-pointer text-blue-400"><i class="fas fa-sync"></i> Refresh</span>
+        </h3>
+        <div id="trx-container"><div class="text-center text-gray-600 mt-10">Loading history...</div></div>
+    </div>
+
+    <div id="banking-modal" class="modal">
+        <div class="bg-[#222] border border-gray-600 w-80 rounded-xl p-6 shadow-2xl">
+            <h2 class="text-lg font-bold mb-4 text-white border-b border-gray-600 pb-2" id="modal-title">Request</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-gray-400">AMOUNT</label>
+                    <input type="number" min="1000" id="req-amount" class="w-full bg-[#333] border border-gray-500 rounded p-2 text-white font-bold outline-none focus:border-yellow-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-400">METHOD</label>
+                    <select id="req-method" class="w-full bg-[#333] border border-gray-500 rounded p-2 text-white outline-none">
+                        <option value="Kpay">KBZ Pay</option>
+                        <option value="Wave">Wave Money</option>
+                        <option value="CB">CB Pay</option>
+                    </select>
+                </div>
+                
+                <div id="deposit-fields">
+                    <div class="mb-2">
+                        <label class="text-xs font-bold text-gray-400">LAST 6 DIGITS (Transaction ID)</label>
+                        <input type="text" id="req-id" class="w-full bg-[#333] border border-gray-500 rounded p-2 text-white outline-none">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400">SENDER NAME</label>
+                        <input type="text" id="req-name" class="w-full bg-[#333] border border-gray-500 rounded p-2 text-white outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button onclick="closeModal('banking-modal')" class="bg-gray-600 text-white py-2 rounded font-bold">Cancel</button>
+                    <button onclick="submitRequest()" class="bg-[#064e3b] text-white py-2 rounded font-bold shadow">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="alert-modal" class="modal"><div class="bg-[#222] border border-gray-600 w-72 rounded-xl p-6 text-center"><i class="fas fa-exclamation-circle text-4xl text-yellow-500 mb-3"></i><p id="alert-msg" class="text-white mb-4 font-bold"></p><button onclick="closeModal('alert-modal')" class="bg-gray-700 text-white px-6 py-2 rounded">OK</button></div></div>
+
+    <script>
+        let currentType = '';
+
+        function openModal(type) {
+            currentType = type;
+            document.getElementById('modal-title').innerText = type + " Request";
+            
+            // Show/Hide extra fields
+            if(type === 'Deposit') document.getElementById('deposit-fields').style.display = 'block';
+            else document.getElementById('deposit-fields').style.display = 'none';
+            
+            document.getElementById('banking-modal').style.display = 'flex';
+        }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function showAlert(msg) { document.getElementById('alert-msg').innerText = msg; document.getElementById('alert-modal').style.display = 'flex'; }
+
+        async function submitRequest() {
+            const amount = document.getElementById('req-amount').value;
+            const method = document.getElementById('req-method').value;
+            const payId = document.getElementById('req-id').value;
+            const payName = document.getElementById('req-name').value;
+
+            if(!amount || amount <= 0) return showAlert("Invalid Amount");
+            
+            // Deposit needs ID & Name
+            if(currentType === 'Deposit' && (!payId || !payName)) return showAlert("Please fill Transaction ID & Name");
+
+            try {
+                const res = await fetch(`${API_BASE}/user/request`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        username: currentUser.username, 
+                        type: currentType, 
+                        amount: parseInt(amount), 
+                        method,
+                        paymentId: payId,
+                        accountName: payName
+                    })
+                });
+                const data = await res.json();
+                
+                if(data.success) { 
+                    showAlert("✅ Request Sent Successfully!"); 
+                    closeModal('banking-modal'); 
+                    loadData(); 
+                } else {
+                    showAlert("❌ " + data.error); // Show Insufficient Balance Error
+                }
+            } catch(e) { showAlert("Server Error"); }
+        }
+
+        async function loadData() {
+            try {
+                const userRes = await fetch(`${API_BASE}/user/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: currentUser.username }) });
+                const userData = await userRes.json();
+                document.getElementById('display-balance').innerText = userData.balance.toLocaleString() + " MMK";
+
+                const reqRes = await fetch(`${API_BASE}/user/my-requests?username=${currentUser.username}`);
+                const requests = await reqRes.json();
+                const container = document.getElementById('trx-container');
+
+                if (requests.length === 0) {
+                    container.innerHTML = '<div class="text-center text-gray-600 mt-10"><i class="fas fa-history text-3xl mb-2 opacity-50"></i><br>No transactions yet</div>';
+                    return;
+                }
+
+                let html = '';
+                requests.forEach(r => {
+                    const isDep = r.type === 'Deposit';
+                    const icon = isDep ? 'fa-arrow-down' : 'fa-arrow-up';
+                    const iconColor = isDep ? 'text-green-400 bg-green-900/30' : 'text-red-400 bg-red-900/30';
+                    const info = isDep ? `<span class="text-xs text-gray-500">${r.method} • ${r.paymentId}</span>` : `<span class="text-xs text-gray-500">${r.method}</span>`;
+                    
+                    html += `
+                    <div class="trx-card">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center ${iconColor} border border-gray-700">
+                                <i class="fas ${icon}"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-white text-sm">${r.type}</div>
+                                ${info}
+                                <div class="text-[10px] text-gray-500 mt-1">${r.date}</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold text-white">${r.amount.toLocaleString()}</div>
+                            <span class="text-[10px] font-bold uppercase status-${r.status}">${r.status}</span>
+                        </div>
+                    </div>`;
+                });
+                container.innerHTML = html;
+
+            } catch(e) { console.error(e); }
+        }
+
+        loadData();
+    </script>
+</body>
+</html>

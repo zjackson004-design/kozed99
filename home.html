@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z99 - Home</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&display=swap');
+        body {
+            background-color: #064e3b;
+            background-image: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url('https://www.transparenttextures.com/patterns/grass.png'); 
+            font-family: 'Segoe UI', 'Padauk', sans-serif; min-height: 100vh;
+        }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 16px; }
+        
+        /* SLIDER STYLES */
+        .slider-container { overflow: hidden; position: relative; border-radius: 15px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); margin-bottom: 15px; border: 2px solid #fbbf24; background: #000; }
+        .slides { display: flex; transition: transform 0.5s ease-in-out; }
+        .slide { min-width: 100%; height: 160px; background-size: cover; background-position: center; }
+        
+        .dots { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; }
+        .dot { width: 8px; height: 8px; background: rgba(255,255,255,0.5); border-radius: 50%; }
+        .dot.active { background: #fbbf24; width: 20px; border-radius: 10px; }
+    </style>
+
+    <div id="install-banner" class="fixed bottom-0 left-0 w-full bg-yellow-400 p-4 hidden z-50 shadow-lg border-t-4 border-green-800">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <img src="logo.png" class="h-10 w-10 bg-white rounded p-1">
+                <div>
+                    <div class="font-black text-green-900 text-sm">INSTALL Z99 APP</div>
+                    <div class="text-xs text-green-800 font-bold">ပိုမိုမြန်ဆန်သော အတွေ့အကြုံအတွက်</div>
+                </div>
+            </div>
+            <button onclick="installApp()" class="bg-green-800 text-white px-4 py-2 rounded font-bold text-xs shadow hover:bg-green-900">INSTALL</button>
+        </div>
+    </div>
+    <script>
+        // ✅ UNIVERSAL CONNECTION (Local မှာရော Server မှာပါ အလိုအလျောက် အလုပ်လုပ်မယ်)
+// ✅ UNIVERSAL CONNECTION
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.')
+    ? 'http://' + window.location.host  // Local မှာ run ရင် Local link သုံးမယ်
+    : '';                               // Server ပေါ်ရောက်ရင် Empty string (Relative Path) သုံးမယ် window.location.origin;
+
+        const currentUser = JSON.parse(localStorage.getItem('z99_user'));
+        if (!currentUser || !currentUser.username) {
+            window.location.href = 'login.html'; 
+        }
+        // Load Language Preference
+        const userLang = localStorage.getItem('z99_lang') || 'en';
+    </script>
+</head>
+<body class="flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md flex flex-col gap-4">
+
+        <div class="text-center mt-2">
+            <img src="logo.png" class="h-20 mx-auto object-contain drop-shadow-2xl hover:scale-105 transition-transform">
+        </div>
+
+        <div class="slider-container">
+            <div class="slides" id="slides">
+                <div class="slide" id="slide-1"></div>
+                <div class="slide" id="slide-2"></div>
+                <div class="slide" id="slide-3"></div>
+            </div>
+            <div class="dots">
+                <div class="dot active"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+        </div>
+
+        <div class="glass-card p-4 border-l-4 border-yellow-400 flex items-center gap-4 shadow-lg">
+            <div class="bg-gray-100 h-14 w-14 rounded-full flex items-center justify-center text-green-700 border border-gray-300 shadow-inner">
+                <i class="fas fa-user-circle text-3xl"></i>
+            </div>
+            <div class="flex-1 space-y-1">
+                <div class="flex justify-between text-sm">
+                    <span class="font-bold text-gray-500" data-key="username">Username:</span>
+                    <span class="font-bold text-gray-800" id="display-uid">...</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="font-bold text-gray-500" data-key="balance">Balance:</span>
+                    <span class="font-black text-green-700 text-lg" id="display-balance">...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full bg-black/50 backdrop-blur text-white text-xs py-2 px-3 rounded-lg shadow flex items-center gap-3 border border-white/10">
+            <i class="fas fa-volume-up text-yellow-400 animate-pulse"></i>
+            <marquee scrollamount="4" id="marquee-text" class="font-bold tracking-wide text-green-200">Loading news...</marquee>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <a href="index.html" class="bg-white rounded-xl p-4 flex flex-col items-center justify-center gap-2 shadow-lg border-b-4 border-green-600 h-28 hover:bg-green-50 hover:-translate-y-1 transition group">
+                <i class="fas fa-futbol text-3xl text-green-600 group-hover:scale-110 transition-transform"></i>
+                <span class="font-bold text-gray-800" data-key="menu_bet">Football Mix</span>
+            </a>
+            <a href="history.html" class="bg-white rounded-xl p-4 flex flex-col items-center justify-center gap-2 shadow-lg border-b-4 border-purple-500 h-28 hover:bg-purple-50 hover:-translate-y-1 transition group">
+                <i class="fas fa-list-alt text-3xl text-purple-500 group-hover:scale-110 transition-transform"></i>
+                <span class="font-bold text-gray-800" data-key="menu_history">History</span>
+            </a>
+            <a href="transaction.html" class="bg-white rounded-xl p-4 flex flex-col items-center justify-center gap-2 shadow-lg border-b-4 border-yellow-500 h-28 hover:bg-yellow-50 hover:-translate-y-1 transition group">
+                <i class="fas fa-wallet text-3xl text-yellow-500 group-hover:scale-110 transition-transform"></i>
+                <span class="font-bold text-gray-800" data-key="menu_wallet">Transactions</span>
+            </a>
+            <a href="profile.html" class="bg-white rounded-xl p-4 flex flex-col items-center justify-center gap-2 shadow-lg border-b-4 border-gray-600 h-28 hover:bg-gray-50 hover:-translate-y-1 transition group">
+                <i class="fas fa-user-cog text-3xl text-gray-600 group-hover:scale-110 transition-transform"></i>
+                <span class="font-bold text-gray-800" data-key="menu_profile">Profile</span>
+            </a>
+        </div>
+
+        <a href="profile.html" class="fixed bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-2xl hover:bg-blue-700 animate-bounce z-50 border-2 border-white">
+            <i class="fas fa-headset text-xl"></i>
+        </a>
+
+        <div class="text-center mt-2 pb-4">
+            <p class="text-green-200 text-[10px] opacity-60 font-mono">Z99 System v2.2</p>
+        </div>
+
+    </div>
+
+    <script>
+        const username = currentUser.username;
+        document.getElementById('display-uid').innerText = username;
+
+        // ✅ 1. LANGUAGE DICTIONARY
+        const langData = {
+            en: { username: "Username:", balance: "Balance:", menu_bet: "Football Mix", menu_history: "History", menu_wallet: "Transactions", menu_profile: "Profile" },
+            mm: { username: "အကောင့်:", balance: "လက်ကျန်ငွေ:", menu_bet: "မောင်းခုံ", menu_history: "မှတ်တမ်း", menu_wallet: "ငွေစာရင်း", menu_profile: "ပရိုဖိုင်" }
+        };
+
+        // Apply Language
+        const texts = langData[userLang];
+        document.querySelectorAll('[data-key]').forEach(el => {
+            const key = el.getAttribute('data-key');
+            if (texts[key]) el.innerText = texts[key];
+        });
+
+        // ✅ 2. SLIDER LOGIC
+        let currentSlide = 0;
+        const slides = document.getElementById('slides');
+        const dots = document.querySelectorAll('.dot');
+        setInterval(() => {
+            currentSlide = (currentSlide + 1) % 3;
+            slides.style.transform = `translateX(-${currentSlide * 100}%)`;
+            dots.forEach(d => d.classList.remove('active'));
+            dots[currentSlide].classList.add('active');
+        }, 3000);
+
+        async function loadData() {
+            try {
+                const res = await fetch(`${API_BASE}/user/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username }) });
+                if (res.status === 404) { logout(); return; }
+                const data = await res.json();
+                document.getElementById('display-balance').innerText = data.balance.toLocaleString() + " MMK";
+
+                // ✅ FETCH CONFIG (Announcements + Banners)
+                fetch(`${API_BASE}/api/config`)
+                    .then(r => r.json())
+                    .then(d => {
+                        document.getElementById('marquee-text').innerText = d.announcement || "Welcome to Z99!";
+                        
+                        // Set Banner Images
+                        document.getElementById('slide-1').style.backgroundImage = `url('${d.banner1}')`;
+                        document.getElementById('slide-2').style.backgroundImage = `url('${d.banner2}')`;
+                        document.getElementById('slide-3').style.backgroundImage = `url('${d.banner3}')`;
+                    });
+
+            } catch (err) { document.getElementById('display-balance').innerText = "Offline"; }
+        }
+
+        function logout() {
+            if(confirm("Log out?")) { localStorage.removeItem('z99_user'); window.location.href = 'login.html'; }
+        }
+
+        // --- PWA INSTALL LOGIC ---
+        let deferredPrompt;
+        
+        // 1. Register Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+
+        // 2. Listen for Install Prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Show the banner
+            document.getElementById('install-banner').classList.remove('hidden');
+        });
+
+        // 3. Install Function
+        async function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    document.getElementById('install-banner').classList.add('hidden');
+                }
+                deferredPrompt = null;
+            }
+        }
+
+        // ✅ CHECK MAINTENANCE & ALERTS
+        async function checkSystemStatus() {
+            try {
+                // 1. Check Alert
+                const res = await fetch(`${API_BASE}/api/alert`);
+                const data = await res.json();
+                if(data.message) {
+                    // Show a nice alert (Toast) - or standard alert for now
+                    // You can replace this with your Toast function
+                    // alert("📢 ADMIN: " + data.message); 
+                    
+                    // Better: Create a marquee or top bar dynamically
+                    const marquee = document.getElementById('marquee-text');
+                    if(marquee) marquee.innerText = "📢 " + data.message;
+                }
+
+                // 2. Check Maintenance (If backend rejects, it returns 503)
+                const checkRes = await fetch(`${API_BASE}/user/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: currentUser.username }) });
+                if(checkRes.status === 503) {
+                    document.body.innerHTML = `<div style="display:flex;height:100vh;justify-content:center;align-items:center;background:#000;color:red;flex-direction:column;"><h1 style="font-size:40px;">⚠️</h1><h2>SYSTEM MAINTENANCE</h2><p>Please come back later.</p></div>`;
+                }
+
+            } catch(e) {}
+        }
+        
+        checkSystemStatus(); // Run on load
+
+        loadData();
+    </script>
+</body>
+</html>

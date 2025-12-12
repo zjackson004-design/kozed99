@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+    // Security Check: Login မဝင်ရသေးရင် login.html ကို ပြန်ကန်ထုတ်မယ်
+    const currentUser = JSON.parse(localStorage.getItem('z99_user'));
+    if (!currentUser || !currentUser.username) {
+        window.location.href = '/login.html'; // Redirect to login
+    }
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z99 - Current Slip</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root { --brand-dark: #064e3b; --brand-light: #10b981; --bg-gray: #f3f4f6; }
+        body { background-color: var(--bg-gray); font-family: 'Segoe UI', sans-serif; }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <header class="bg-[#064e3b] text-white shadow-lg flex-none sticky top-0 z-50">
+        <div class="flex justify-between items-center px-4 py-3">
+            <a href="home.html" class="text-white hover:text-yellow-400 text-lg">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+            <h1 class="font-bold text-lg tracking-wide">Current Slips</h1>
+            <div onclick="clearHistory()" class="text-xs text-red-300 cursor-pointer border border-red-300 px-2 py-1 rounded hover:bg-red-900">
+                Clear All
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-3 pb-20" id="slip-container">
+        </main>
+
+    <script>
+        function loadSlips() {
+            const container = document.getElementById('slip-container');
+            // LocalStorage မှ ဒေတာဆွဲထုတ်ခြင်း
+            const slips = JSON.parse(localStorage.getItem('z99_bets')) || [];
+
+            if (slips.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <i class="fas fa-receipt text-4xl mb-3 opacity-30"></i>
+                        <p>No Active Bets</p>
+                        <a href="index.html" class="mt-4 bg-green-600 text-white px-4 py-2 rounded text-sm font-bold">Bet Now</a>
+                    </div>`;
+                return;
+            }
+
+            let html = "";
+            slips.forEach(ticket => {
+                // Mix Parlay ပွဲများကို Loop ပတ်ပြီး ထုတ်မယ်
+                let matchesHtml = "";
+                ticket.matches.forEach(match => {
+                    matchesHtml += `
+                        <div class="border-b border-dashed border-gray-200 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
+                            <div class="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>${match.matchTitle}</span> </div>
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-gray-800 text-sm">${match.selection}</span>
+                                <span class="font-bold ${match.oddsText.includes('-') ? 'text-red-600' : 'text-blue-700'}">${match.oddsText}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // ဘောက်ချာ တစ်စောင်ချင်းစီရဲ့ ဒီဇိုင်း
+                html += `
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-4 border border-gray-200 relative">
+                        <div class="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-gray-400 font-bold uppercase">Ticket ID</span>
+                                <span class="font-bold text-green-800 text-xs">#${ticket.id}</span>
+                            </div>
+                            <div class="flex flex-col text-right">
+                                <span class="text-[10px] text-gray-400">${ticket.date}</span>
+                                <span class="bg-yellow-100 text-yellow-700 text-[10px] px-2 py-0.5 rounded-full font-bold inline-block self-end">${ticket.status}</span>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-white">
+                            ${matchesHtml}
+                        </div>
+
+                        <div class="bg-[#064e3b] px-3 py-2 text-white flex justify-between items-center">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-green-200 uppercase">Total Stake</span>
+                                <span class="font-bold text-sm">${parseInt(ticket.stake).toLocaleString()}</span>
+                            </div>
+                            <div class="text-center">
+                                <span class="text-[10px] text-green-200 uppercase">Odds</span>
+                                <span class="font-bold text-yellow-400 text-sm">${ticket.totalOdds}</span>
+                            </div>
+                            <div class="flex flex-col text-right">
+                                <span class="text-[10px] text-green-200 uppercase">Max Payout</span>
+                                <span class="font-bold text-lg text-yellow-400">${ticket.potentialWin}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // ဘောက်ချာ အကုန်ဖျက်ရန် (စမ်းသပ်ဖို့)
+        function clearHistory() {
+            if(confirm("Delete all tickets?")) {
+                localStorage.removeItem('z99_bets');
+                loadSlips();
+            }
+        }
+
+        // စဖွင့်တာနဲ့ Load လုပ်မယ်
+        loadSlips();
+    </script>
+
+</body>
+</html>
