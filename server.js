@@ -11,7 +11,6 @@ app.use(express.json());
 
 // ✅ 1. DATABASE CONNECTION
 const MONGO_URI = "mongodb+srv://kozed:Bwargyi69@cluster0.s5oybom.mongodb.net/z99_final?appName=Cluster0";
-// ✅ YOUR NEW API KEY
 const ODDS_API_KEY = "36a3572a718ac9c39b292c2a5de34221"; 
 const ADMIN_SECRET = "Z99-BOSS";
 
@@ -19,7 +18,7 @@ mongoose.connect(MONGO_URI)
     .then(() => console.log("✅ MongoDB Connected!"))
     .catch(err => console.error("❌ MongoDB Error:", err));
 
-// ✅ 2. SCHEMAS (Database Models)
+// ✅ 2. SCHEMAS
 const configSchema = new mongoose.Schema({ key: { type: String, unique: true }, value: String });
 const Config = mongoose.model('Config', configSchema);
 
@@ -46,26 +45,17 @@ const requestSchema = new mongoose.Schema({
 const Request = mongoose.model('Request', requestSchema);
 
 const adminLogSchema = new mongoose.Schema({
-    action: String, 
-    admin: String,
-    details: String,
-    date: { type: String, default: () => new Date().toLocaleString() }
+    action: String, admin: String, details: String, date: { type: String, default: () => new Date().toLocaleString() }
 });
 const AdminLog = mongoose.model('AdminLog', adminLogSchema);
 
 // ✅ 3. MIDDLEWARE & STATIC FILES
 app.use(express.static(__dirname));
 
-// Maintenance Check
 app.use(async (req, res, next) => {
-    // Allow critical paths even during maintenance
-    if (req.path.startsWith('/admin') || req.path === '/auth/login' || req.path === '/auth/register' || req.path === '/' || req.path.includes('.')) {
-        return next();
-    }
+    if (req.path.startsWith('/admin') || req.path === '/auth/login' || req.path === '/auth/register' || req.path.includes('.')) return next();
     const maint = await Config.findOne({ key: 'maintenance' });
-    if (maint && maint.value === 'true') {
-        return res.status(503).json({ error: "⚠️ SITE UNDER MAINTENANCE" });
-    }
+    if (maint && maint.value === 'true') return res.status(503).json({ error: "⚠️ SITE UNDER MAINTENANCE" });
     next();
 });
 
@@ -76,10 +66,8 @@ app.post('/auth/register', async (req, res) => {
         const codeDoc = await Config.findOne({ key: 'invite_code' });
         const VALID_CODE = codeDoc ? codeDoc.value : "8888"; 
         if (inviteCode !== VALID_CODE) return res.status(400).json({ error: "Invalid Invite Code!" });
-
         const existing = await User.findOne({ username });
         if(existing) return res.status(400).json({ error: "Username taken!" });
-        
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = new User({ username, password: hashedPassword, balance: 0 });
         await newUser.save();
@@ -99,74 +87,32 @@ app.post('/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// ✅ 5. USER ROUTES & WALLET
+// ✅ 5. USER ROUTES
 app.post('/user/request', async (req, res) => {
     const { username, type, amount, method, paymentId, accountName } = req.body;
     try {
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: "User not found" });
-
-        // 🛑 Balance Check for Withdraw
         if (type === 'Withdraw') {
-            if (user.balance < amount) {
-                return res.status(400).json({ error: "Insufficient Balance" });
-            }
-            user.balance -= amount; 
-            await user.save();
+            if (user.balance < amount) return res.status(400).json({ error: "Insufficient Balance" });
+            user.balance -= amount; await user.save();
         }
-
         const newReq = new Request({ username, type, amount, method, paymentId, accountName });
         await newReq.save();
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Request Failed" }); }
 });
 
-app.post('/user/sync', async (req, res) => { 
-    const { username } = req.body; 
-    try { const user = await User.findOne({ username }); if(!user) return res.status(404).json({ error: "User not found" }); res.json(user); } catch (err) { res.status(500).json({ error: "Error" }); } 
-});
-
-app.get('/user/my-requests', async (req, res) => { 
-    const { username } = req.query; 
-    try { const requests = await Request.find({ username }).sort({ _id: -1 }).limit(50); res.json(requests); } catch (err) { res.status(500).json([]); } 
-});
-
-app.post('/user/bet', async (req, res) => { 
-    const { username, stake, ticket } = req.body; 
-    try { 
-        const user = await User.findOne({ username }); 
-        if (!user || user.balance < stake) return res.status(400).json({ error: "Insufficient Balance" }); 
-        
-        const limitStakeDoc = await Config.findOne({ key: 'max_stake' }); 
-        const limitWinDoc = await Config.findOne({ key: 'max_win' }); 
-        const MAX_STAKE = limitStakeDoc ? parseInt(limitStakeDoc.value) : 100000; 
-        const MAX_WIN = limitWinDoc ? parseInt(limitWinDoc.value) : 5000000; 
-        
-        let totalOdds = 1; 
-        if(ticket.matches && Array.isArray(ticket.matches)) { 
-            ticket.matches.forEach(m => totalOdds *= parseFloat(m.odds)); 
-        } 
-        const calculatedWin = Math.floor(stake * totalOdds); 
-        ticket.win = calculatedWin.toLocaleString() + " MMK"; 
-        
-        if (stake > MAX_STAKE) return res.status(400).json({ error: `Stake Limit: ${MAX_STAKE}` }); 
-        if (calculatedWin > MAX_WIN) return res.status(400).json({ error: `Payout Limit: ${MAX_WIN}` }); 
-        
-        user.balance -= stake; 
-        user.history.unshift(ticket); 
-        user.transactions.unshift({ title: "Bet Placed", date: new Date().toLocaleString(), amount: `-${stake}`, status: "Success", color: "red" }); 
-        user.markModified('history'); 
-        await user.save(); 
-        res.json({ success: true, newBalance: user.balance, history: user.history }); 
-    } catch (err) { res.status(500).json({ error: err.message }); } 
-});
+app.post('/user/sync', async (req, res) => { const { username } = req.body; try { const user = await User.findOne({ username }); if(!user) return res.status(404).json({ error: "User not found" }); res.json(user); } catch (err) { res.status(500).json({ error: "Error" }); } });
+app.get('/user/my-requests', async (req, res) => { const { username } = req.query; try { const requests = await Request.find({ username }).sort({ _id: -1 }).limit(50); res.json(requests); } catch (err) { res.status(500).json([]); } });
+app.post('/user/bet', async (req, res) => { const { username, stake, ticket } = req.body; try { const user = await User.findOne({ username }); if (!user || user.balance < stake) return res.status(400).json({ error: "Insufficient Balance" }); const limitStakeDoc = await Config.findOne({ key: 'max_stake' }); const limitWinDoc = await Config.findOne({ key: 'max_win' }); const MAX_STAKE = limitStakeDoc ? parseInt(limitStakeDoc.value) : 100000; const MAX_WIN = limitWinDoc ? parseInt(limitWinDoc.value) : 5000000; let totalOdds = 1; if(ticket.matches && Array.isArray(ticket.matches)) { ticket.matches.forEach(m => totalOdds *= parseFloat(m.odds)); } const calculatedWin = Math.floor(stake * totalOdds); ticket.win = calculatedWin.toLocaleString() + " MMK"; if (stake > MAX_STAKE) return res.status(400).json({ error: `Stake Limit: ${MAX_STAKE}` }); if (calculatedWin > MAX_WIN) return res.status(400).json({ error: `Payout Limit: ${MAX_WIN}` }); user.balance -= stake; user.history.unshift(ticket); user.transactions.unshift({ title: "Bet Placed", date: new Date().toLocaleString(), amount: `-${stake}`, status: "Success", color: "red" }); user.markModified('history'); await user.save(); res.json({ success: true, newBalance: user.balance, history: user.history }); } catch (err) { res.status(500).json({ error: err.message }); } });
 
 // ✅ 6. ADMIN ROUTES
 app.post('/admin/login', (req, res) => { const { code } = req.body; if (code === ADMIN_SECRET) res.json({ success: true }); else res.json({ success: false }); });
 app.get('/admin/data', async (req, res) => { try { const users = await User.find({}); const dbMap = {}; users.forEach(u => { dbMap[u.username] = { id: u._id, balance: u.balance, history: u.history, transactions: u.transactions, password: u.password, isBanned: u.isBanned }; }); res.json(dbMap); } catch (err) { res.status(500).json({ error: "DB Error" }); } });
 app.get('/admin/requests', async (req, res) => { try { const requests = await Request.find({ status: 'Pending' }); res.json(requests); } catch(e) { res.json([]); } });
 app.get('/admin/transactions', async (req, res) => { try { const users = await User.find({}); let allTrx = []; users.forEach(u => { u.transactions.forEach(t => { allTrx.push({ ...t, username: u.username }); }); }); allTrx.sort((a, b) => new Date(b.date) - new Date(a.date)); res.json(allTrx.slice(0, 100)); } catch (e) { res.json([]); } });
-app.post('/admin/approve-request', async (req, res) => { const { id, action } = req.body; try { const reqDoc = await Request.findById(id); if(!reqDoc || reqDoc.status !== 'Pending') return res.status(400).json({ error: "Invalid" }); reqDoc.status = action; await reqDoc.save(); const user = await User.findOne({ username: reqDoc.username }); if(user) { const details = `${reqDoc.method} | ${reqDoc.paymentId} | ${reqDoc.accountName}`; if (action === 'Approve') { if (reqDoc.type === 'Deposit') { user.balance += reqDoc.amount; user.transactions.unshift({ title: "Deposit Approved", type: "Deposit", details: details, date: new Date().toLocaleString(), amount: `+${reqDoc.amount}`, status: "Success", color: "green" }); } else { user.transactions.unshift({ title: "Withdraw Approved", type: "Withdraw", details: details, date: new Date().toLocaleString(), amount: `-${reqDoc.amount}`, status: "Success", color: "red" }); } } else if (action === 'Reject' && reqDoc.type === 'Withdraw') { user.balance += reqDoc.amount; user.transactions.unshift({ title: "Withdraw Refund", type: "Refund", details: "Refund", date: new Date().toLocaleString(), amount: `+${reqDoc.amount}`, status: "Refund", color: "green" }); } await user.save(); } res.json({ success: true }); } catch(e) { res.status(500).json({ error: e.message }); } });
+app.post('/admin/approve-request', async (req, res) => { const { id, action } = req.body; try { const reqDoc = await Request.findById(id); if(!reqDoc || reqDoc.status !== 'Pending') return res.status(400).json({ error: "Invalid" }); reqDoc.status = action; await reqDoc.save(); const user = await User.findOne({ username: reqDoc.username }); if(user) { const details = `${reqDoc.method} | ${reqDoc.paymentId}`; if (action === 'Approve') { if (reqDoc.type === 'Deposit') { user.balance += reqDoc.amount; user.transactions.unshift({ title: "Deposit Approved", type: "Deposit", details: details, date: new Date().toLocaleString(), amount: `+${reqDoc.amount}`, status: "Success", color: "green" }); } else { user.transactions.unshift({ title: "Withdraw Approved", type: "Withdraw", details: details, date: new Date().toLocaleString(), amount: `-${reqDoc.amount}`, status: "Success", color: "red" }); } } else if (action === 'Reject' && reqDoc.type === 'Withdraw') { user.balance += reqDoc.amount; user.transactions.unshift({ title: "Withdraw Refund", type: "Refund", details: "Refund", date: new Date().toLocaleString(), amount: `+${reqDoc.amount}`, status: "Refund", color: "green" }); } await user.save(); } res.json({ success: true }); } catch(e) { res.status(500).json({ error: e.message }); } });
 app.get('/api/config', async (req, res) => { try { const announcement = await Config.findOne({ key: 'announcement' }); const maxStake = await Config.findOne({ key: 'max_stake' }); const maxWin = await Config.findOne({ key: 'max_win' }); const inviteCode = await Config.findOne({ key: 'invite_code' }); const banner1 = await Config.findOne({ key: 'banner1' }); const banner2 = await Config.findOne({ key: 'banner2' }); const banner3 = await Config.findOne({ key: 'banner3' }); res.json({ announcement: announcement ? announcement.value : "Welcome!", maxStake: maxStake ? parseInt(maxStake.value) : 100000, maxWin: maxWin ? parseInt(maxWin.value) : 5000000, inviteCode: inviteCode ? inviteCode.value : "8888", banner1: banner1 ? banner1.value : "", banner2: banner2 ? banner2.value : "", banner3: banner3 ? banner3.value : "" }); } catch (err) { res.json({}); } });
 app.post('/admin/config', async (req, res) => { const { maxStake, maxWin, announcement, banner1, banner2, banner3, inviteCode } = req.body; try { if(announcement) await Config.findOneAndUpdate({ key: 'announcement' }, { value: announcement }, { upsert: true }); if(maxStake) await Config.findOneAndUpdate({ key: 'max_stake' }, { value: maxStake.toString() }, { upsert: true }); if(maxWin) await Config.findOneAndUpdate({ key: 'max_win' }, { value: maxWin.toString() }, { upsert: true }); if(inviteCode) await Config.findOneAndUpdate({ key: 'invite_code' }, { value: inviteCode }, { upsert: true }); if(banner1) await Config.findOneAndUpdate({ key: 'banner1' }, { value: banner1 }, { upsert: true }); if(banner2) await Config.findOneAndUpdate({ key: 'banner2' }, { value: banner2 }, { upsert: true }); if(banner3) await Config.findOneAndUpdate({ key: 'banner3' }, { value: banner3 }, { upsert: true }); res.json({ success: true }); } catch (err) { res.status(500).json({ error: "Update Failed" }); } });
 app.get('/admin/report', async (req, res) => { const { date } = req.query; try { const allRequests = await Request.find({ status: { $in: ['Approve', 'Reject'] } }); let dailyData = { deposit: 0, withdraw: 0, net: 0, count: 0, transactions: [] }; allRequests.forEach(r => { const targetDate = date ? new Date(date).toLocaleDateString() : new Date().toLocaleDateString(); if (r.date.includes(targetDate)) { if (r.status === 'Approve') { if (r.type === 'Deposit') dailyData.deposit += r.amount; else if (r.type === 'Withdraw') dailyData.withdraw += r.amount; } dailyData.transactions.push(r); } }); dailyData.net = dailyData.deposit - dailyData.withdraw; res.json(dailyData); } catch (e) { res.status(500).json({ error: "Report Error" }); } });
@@ -179,27 +125,16 @@ app.post('/admin/balance', async (req, res) => { const { username, amount, actio
 app.post('/admin/ban', async (req, res) => { const { username, status } = req.body; try { const user = await User.findOne({ username }); user.isBanned = status; await user.save(); res.json({ success: true }); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.post('/admin/settle', async (req, res) => { const { userId, ticketId, outcome } = req.body; try { const user = await User.findOne({ username: userId }); const ticket = user.history.find(t => t.id === ticketId); if(ticket.status !== 'Pending') return; ticket.status = outcome; if (outcome === 'Won') { let winAmountStr = ticket.win.toString().replace(/,/g, '').replace(' MMK', '').trim(); let winAmount = parseInt(winAmountStr); if (isNaN(winAmount) || winAmount <= 0) { let totalOdds = 1; ticket.matches.forEach(m => totalOdds *= parseFloat(m.odds)); winAmount = Math.floor(ticket.stake * totalOdds); ticket.win = winAmount.toLocaleString() + " MMK"; } user.balance += winAmount; user.transactions.unshift({ title: "Win Payout", date: new Date().toLocaleString(), amount: `+${winAmount}`, status: "Success", color: "green" }); } user.markModified('history'); await user.save(); res.json({ success: true }); } catch (err) { res.status(500).json({ error: err.message }); } });
 
-// ✅ 7. ODDS API WITH SMART CACHING (NO MOCK DATA)
+// ✅ 7. ODDS API (Smart Caching, No Mock Data)
 let cachedOdds = [];
 let lastFetchTime = 0;
-// ⏳ CACHE DURATION: 30 Minutes
 const CACHE_DURATION = 30 * 60 * 1000; 
-
-const LEAGUES = [ 
-    { key: 'soccer_epl', name: 'Premier League' }, 
-    { key: 'soccer_spain_la_liga', name: 'La Liga' }, 
-    { key: 'soccer_uefa_champs_league', name: 'Champions League' } 
-];
+const LEAGUES = [ { key: 'soccer_epl', name: 'Premier League' }, { key: 'soccer_spain_la_liga', name: 'La Liga' }, { key: 'soccer_uefa_champs_league', name: 'Champions League' } ];
 
 app.get('/odds', async (req, res) => {
-    // 1. Check if Cache is Valid
-    if (cachedOdds.length > 0 && (Date.now() - lastFetchTime < CACHE_DURATION)) { 
-        console.log("⚡ Serving from Cache (30 min)");
-        return res.json(cachedOdds); 
-    }
-
+    if (cachedOdds.length > 0 && (Date.now() - lastFetchTime < CACHE_DURATION)) { return res.json(cachedOdds); }
     try {
-        console.log("📡 Fetching New Data from API...");
+        console.log("📡 Fetching Real API...");
         const requests = LEAGUES.map(league => 
             axios.get(`https://api.the-odds-api.com/v4/sports/${league.key}/odds`, { 
                 params: { apiKey: ODDS_API_KEY, regions: 'eu', markets: 'h2h,totals,spreads', oddsFormat: 'decimal' } 
@@ -221,28 +156,20 @@ app.get('/odds', async (req, res) => {
         const results = await Promise.all(requests); 
         let finalData = results.flat().sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date)); 
         
-        // ✅ NO MOCK DATA FALLBACK
-        // If finalData is empty, it just returns [] and frontend shows "No matches"
-        
-        cachedOdds = finalData; 
-        lastFetchTime = Date.now(); 
-        res.json(finalData); 
+        // ✅ NO MOCK DATA (Returns Empty Array if Error)
+        cachedOdds = finalData; lastFetchTime = Date.now(); res.json(finalData); 
 
-    } catch (e) { 
-        console.error("❌ API Error:", e.message);
-        // If Error, Return Empty (Frontend will show "No matches")
-        res.json([]); 
-    } 
+    } catch (e) { console.error("API Error"); res.json([]); } 
 });
 
 // ✅ 8. ROUTING FOR RENDER (Start Link = Login)
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'login.html'))); // ROOT -> LOGIN
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'login.html')));
 app.get('/home', (req, res) => res.sendFile(path.join(__dirname, 'home.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/:page', (req, res) => {
     const page = req.params.page;
     if (page.endsWith('.html')) res.sendFile(path.join(__dirname, page));
-    else res.sendFile(path.join(__dirname, 'login.html')); // Fallback to login
+    else res.sendFile(path.join(__dirname, 'login.html'));
 });
 
 const PORT = process.env.PORT || 3000;
